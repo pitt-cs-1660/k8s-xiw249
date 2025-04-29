@@ -11,7 +11,11 @@ spec:
     - port: 80
   ##
   # Create service selector labels here
-  ##
+  # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  selector:
+    app: wordpress
+    tier: frontend
+  # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -20,7 +24,10 @@ metadata:
 data:
   ##
   # create non-sensative data attributes
-  ##
+  # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  host: 'wordpress-mysql'
+  user: 'wordpress'
+  # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -33,11 +40,21 @@ spec:
   replicas: 3
   ##
   # Create app selector labels here
-  ##
+  # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+  selector:
+    matchLabels:
+      app: wordpress
+      tier: frontend
+  # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
   template:
     ##
     # Create metadata labels here
-    ##
+    # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+    metadata:
+      labels:
+        app: wordpress
+        tier: frontend
+    # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
     spec:
       containers:
       - image: wordpress:6.2.1-apache
@@ -46,20 +63,61 @@ spec:
         ##
         # mount non-sensitive environment vars from configmap ref
         # WORDPRESS_DB_HOST | WORDPRESS_DB_USER
-        ##
+        # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        - name: WORDPRESS_DB_HOST
+          valueFrom:
+            configMapKeyRef:
+              name: wordpress
+              key: host
+        - name: WORDPRESS_DB_USER
+          valueFrom:
+            configMapKeyRef:
+              name: wordpress
+              key: user
+        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
         ##
         # mount sensitive environment vars from secret ref
         # WORDPRESS_DB_PASSWORD (hint use the user-password key)
-        ##
+        # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        - name: WORDPRESS_DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: database
+              key: user-password
+        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
         ports:
         - containerPort: 80
           name: wordpress
+        ##
+        # define volume mounts here, be sure to reference
+        # the PVC in your container spec
+        # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+        #
+        volumeMounts:
+        - name: wordpress-persistent-storage
+          mountPath: /var/www/html
+        # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
       ##
-      # define volume mounts here, be sure to reference
-      # the PVC in your container spec
-      ##
+      #
+      # VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+      volumes:
+      - name: wordpress-persistent-storage
+        persistentVolumeClaim:
+          claimName: wp-pv-claim
+      # ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 ---
 ##
 # Create persistent volume claim here
-##
+# VVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: wp-pv-claim
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+# ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
